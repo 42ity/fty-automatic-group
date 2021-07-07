@@ -5,6 +5,8 @@
 #include "lib/storage.h"
 #include <catch2/catch.hpp>
 
+using namespace fmt::literals;
+
 class Group : public fty::Group
 {
 public:
@@ -1702,6 +1704,189 @@ TEST_CASE("Resolve by hosted by")
             REQUIRE(info.size() == 0);
         }
 
+    } catch (const std::exception& ex) {
+        FAIL(ex.what());
+    }
+}
+
+TEST_CASE("Resolve by Group")
+{
+    try {
+        fty::SampleDb db(R"(
+            items:
+                - type : Datacenter
+                  name : datacenter
+                  items:
+                    - type     : Server
+                      name     : srv11
+                      ext-name : srv11
+                - type : Datacenter
+                  name : datacenter1
+                  items:
+                    - type     : Server
+                      name     : srv21
+                      ext-name : srv21
+                - type : Datacenter
+                  name : datacenter2
+                  items:
+                    - type     : Server
+                      name     : serv
+                      ext-name : serv
+                    - type     : Server
+                      name     : servsrv
+                      ext-name : servsrv
+            )");
+
+        static std::string groupNameJaml(R"(
+              name  : ByName
+              rules : 
+                  operator  : AND
+                  conditions:
+                    - field    : name
+                      operator : CONTAINS
+                      value    : srv
+            )");
+
+        Group groupName;
+
+        if (auto ret = pack::yaml::deserialize(groupNameJaml, groupName); !ret) {
+            FAIL(ret.error());
+        }
+
+        auto createdName = groupName.create();
+
+        // And operator | Contains
+        {
+            std::string groupWithLinkJaml = R"(
+                name  : WithLink
+                rules :
+                    operator  : AND
+                    conditions:
+                      - field    : name
+                        operator : CONTAINS
+                        value    : serv
+                      - field    : group
+                        operator : IS
+                        value    : {}
+            )"_format(createdName.id.value());
+
+            Group groupLink;
+
+            if (auto ret = pack::yaml::deserialize(groupWithLinkJaml, groupLink); !ret) {
+                FAIL(ret.error());
+            }
+            auto g    = groupLink.create();
+            auto info = g.resolve();
+            REQUIRE(info.size() == 1);
+            CHECK(info[0].name == "servsrv");
+        }
+
+        // IsNot in group
+        {
+            std::string groupWithLinkJaml = R"(
+                name  : WithLink
+                rules :
+                    operator  : AND
+                    conditions:
+                      - field    : name
+                        operator : ISNOT
+                        value    : serv
+                      - field    : group
+                        operator : IS
+                        value    : {}
+            )"_format(createdName.id.value());
+
+            Group groupLink;
+
+            if (auto ret = pack::yaml::deserialize(groupWithLinkJaml, groupLink); !ret) {
+                FAIL(ret.error());
+            }
+
+            auto g    = groupLink.create();
+            auto info = g.resolve();
+            REQUIRE(info.size() == 3);
+            CHECK(info[0].name == "srv11");
+            CHECK(info[1].name == "srv21");
+            CHECK(info[2].name == "servsrv");
+        }
+
+        // IsNot group
+        {
+            std::string groupWithLinkJaml = R"(
+                name  : WithLink
+                rules :
+                    operator  : AND
+                    conditions:
+                      - field    : name
+                        operator : CONTAINS
+                        value    : serv
+                      - field    : group
+                        operator : ISNOT
+                        value    : {}
+            )"_format(createdName.id.value());
+
+            Group groupLink;
+
+            if (auto ret = pack::yaml::deserialize(groupWithLinkJaml, groupLink); !ret) {
+                FAIL(ret.error());
+            }
+
+            auto g    = groupLink.create();
+            auto info = g.resolve();
+            REQUIRE(info.size() == 1);
+            CHECK(info[0].name == "serv");
+        }
+
+        // IsNot with two linked groups
+        {
+            std::string groupTmpJaml(R"(
+                name  : LinkTmp
+                rules : 
+                    operator  : AND
+                    conditions:
+                      - field    : name
+                        operator : CONTAINS
+                        value    : srv21
+            )");
+
+            Group groupLink;
+            Group groupTmp;
+
+            if (auto ret = pack::yaml::deserialize(groupTmpJaml, groupTmp); !ret) {
+                FAIL(ret.error());
+            }
+
+            auto gTmp = groupTmp.create();
+
+            std::string groupWithLinkJaml = R"(
+                name : WithLink
+                rules :
+                    operator : AND
+                    conditions:
+                      - field : name
+                        operator : CONTAINS
+                        value : s
+                      - field : group
+                        operator : ISNOT
+                        value : {}
+                      - field : group
+                        operator : ISNOT
+                        value : {}
+            )"_format(createdName.id.value(), gTmp.id.value());
+
+            if (auto ret = pack::yaml::deserialize(groupWithLinkJaml, groupLink); !ret) {
+                FAIL(ret.error());
+            }
+
+            auto g    = groupLink.create();
+            auto info = g.resolve();
+
+            REQUIRE(info.size() == 1);
+            CHECK(info[0].name == "serv");
+        }
+
+        createdName.remove();
+        CHECK(fty::Storage::clear());
     } catch (const std::exception& ex) {
         FAIL(ex.what());
     }

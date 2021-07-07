@@ -393,49 +393,67 @@ static std::string byHostedBy(const Group::Condition& cond)
     );
     // clang-format on
 }
-
+static std::string byGroupId(tnt::Connection& conn, const Group::Condition& cond);
 // =====================================================================================================================
 
 static std::string groupSql(fty::db::Connection& conn, const Group::Rules& group)
 {
-    std::vector<std::string> subQueries;
+    struct SubQuery
+    {
+        std::string query;
+        std::string op;
+        SubQuery(const std::string& q, const std::string& o = "IN")
+            : query(q)
+            , op(o)
+        {
+        }
+    };
+
+    std::vector<SubQuery> subQueries;
     for (const auto& it : group.conditions) {
         if (it.is<Group::Condition>()) {
             const auto& cond = it.get<Group::Condition>();
             switch (cond.field) {
                 case Group::Fields::Contact:
-                    subQueries.push_back(byContact(cond));
+                    subQueries.emplace_back(byContact(cond));
                     break;
                 case Group::Fields::HostName:
-                    subQueries.push_back(byHostName(cond));
+                    subQueries.emplace_back(byHostName(cond));
                     break;
                 case Group::Fields::IPAddress:
-                    subQueries.push_back(byIpAddress(cond));
+                    subQueries.emplace_back(byIpAddress(cond));
                     break;
                 case Group::Fields::Location:
-                    subQueries.push_back(byLocation(conn, cond));
+                    subQueries.emplace_back(byLocation(conn, cond));
                     break;
                 case Group::Fields::Name:
-                    subQueries.push_back(byName(cond));
+                    subQueries.emplace_back(byName(cond));
                     break;
                 case Group::Fields::Type:
-                    subQueries.push_back(byType(cond));
+                    subQueries.emplace_back(byType(cond));
                     break;
                 case Group::Fields::SubType:
-                    subQueries.push_back(bySubType(cond));
+                    subQueries.emplace_back(bySubType(cond));
                     break;
                 case Group::Fields::InternalName:
-                    subQueries.push_back(byInternalName(cond));
+                    subQueries.emplace_back(byInternalName(cond));
                     break;
                 case Group::Fields::HostedBy:
-                    subQueries.push_back(byHostedBy(cond));
+                    subQueries.emplace_back(byHostedBy(cond));
+                    break;
+                case Group::Fields::Group:
+                    if (cond.op == fty::Group::ConditionOp::IsNot) {
+                        subQueries.emplace_back(byGroupId(conn, cond), "NOT IN");
+                    } else {
+                        subQueries.emplace_back(byGroupId(conn, cond));
+                    }
                     break;
                 case Group::Fields::Unknown:
                 default:
                     throw Error("Unsupported field '{}' in condition", cond.field.asString());
             }
         } else {
-            subQueries.push_back(groupSql(conn, it.get<Group::Rules>()));
+            subQueries.emplace_back(groupSql(conn, it.get<Group::Rules>()));
         }
     }
 
@@ -443,14 +461,37 @@ static std::string groupSql(fty::db::Connection& conn, const Group::Rules& group
         throw Error("Request is empty");
     }
 
-    std::string sql = R"(
-        SELECT
-            id_asset_element as id
-        FROM t_bios_asset_element
-        WHERE id_asset_element IN ({})
-    )"_format(fty::implode(subQueries, ") " + sqlLogicalOperator(group.groupOp) + " id_asset_element IN ("));
+    auto lambdaImplode = [&]() {
+        std::stringstream ss;
+        bool              first = true;
+        for (const auto& query : subQueries) {
+            if (!first) {
+                ss << ") " + sqlLogicalOperator(group.groupOp) + " id_asset_element " + query.op + " (";
+            }
+            first = false;
+            ss << query.query;
+        }
+        return ss.str();
+    };
 
-    return sql;
+    return R"(
+       SELECT
+           id_asset_element as id
+       FROM t_bios_asset_element
+       WHERE id_asset_element IN ({})
+   )"_format(lambdaImplode());
+}
+
+static std::string byGroupId(tnt::Connection& conn, const Group::Condition& cond)
+{
+    auto val   = fty::convert<uint64_t, std::string>(cond.value);
+    auto group = Storage::byId(val);
+
+    if (!group) {
+        throw Error(group.error());
+    }
+
+    return groupSql(conn, group->rules);
 }
 
 void Resolve::run(const commands::resolve::In& in, commands::resolve::Out& assetList)

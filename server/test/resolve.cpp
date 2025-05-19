@@ -421,136 +421,6 @@ TEST_CASE("Resolve by InternalName")
     }
 }
 
-TEST_CASE("Resolve by location 3 | find vm and hypervisors as well")
-{
-    try {
-        fty::SampleDb db(R"(
-            items:
-                - type : Datacenter
-                  name : datacenter
-                  items:
-                    - type     : Room
-                      name     : room
-                      ext-name : Room
-                      items:
-                        - type     : Rack
-                          name     : rack
-                          ext-name : Rack
-                          items:
-                            - type     : Server
-                              name     : srv11
-                              ext-name : srv11
-                            - type     : Server
-                              name     : srv112
-                              ext-name : srv112
-                - type : Hypervisor
-                  name : hypervisor
-                - type : Hypervisor
-                  name : hypervisor1
-                - type : Hypervisor
-                  name : hypervisor2
-                - type : Hypervisor
-                  name : hypervisor3
-                - type : virtual-machine
-                  name : vm1
-                - type : virtual-machine
-                  name : vm2
-                - type : Datacenter
-                  name : datacenter1
-                  items:
-                    - type     : Server
-                      name     : srv21
-                      ext-name : srv21
-            links:
-                - dest : hypervisor
-                  src  : srv11
-                  type : ipminfra.server.hosts.os
-                - dest : hypervisor2
-                  src  : srv112
-                  type : ipminfra.server.hosts.os
-                - dest : hypervisor3
-                  src  : srv21
-                  type : ipminfra.server.hosts.os
-                - dest : vm1
-                  src  : hypervisor
-                  type : vmware.esxi.hosts.vm
-                - dest : vm2
-                  src  : hypervisor3
-                  type : vmware.esxi.hosts.vm
-            )");
-
-        Group group;
-        group.name          = "ByLocation";
-        group.rules.groupOp = fty::Group::LogicalOp::And;
-
-        auto& var  = group.rules.conditions.append();
-        auto& cond = var.reset<fty::Group::Condition>();
-        cond.field = fty::Group::Fields::Location;
-
-        //"Contains"
-        {
-            cond.value = "room";
-            cond.op    = fty::Group::ConditionOp::Contains;
-
-            auto g    = group.create();
-            auto info = g.resolve();
-
-            REQUIRE(info.size() == 5);
-            CHECK(info[0].name == "srv11");
-            CHECK(info[1].name == "srv112");
-            CHECK(info[2].name == "hypervisor");
-            CHECK(info[3].name == "hypervisor2");
-            CHECK(info[4].name == "vm1");
-        }
-
-        // "Is"
-        {
-            cond.value = "room";
-            cond.op    = fty::Group::ConditionOp::Is;
-
-            auto g    = group.create();
-            auto info = g.resolve();
-
-            REQUIRE(info.size() == 5);
-            CHECK(info[0].name == "srv11");
-            CHECK(info[1].name == "srv112");
-            CHECK(info[2].name == "hypervisor");
-            CHECK(info[3].name == "hypervisor2");
-            CHECK(info[4].name == "vm1");
-        }
-
-        //"IsNot"
-        {
-            cond.value = "room";
-            cond.op    = fty::Group::ConditionOp::IsNot;
-
-            auto g    = group.create();
-            auto info = g.resolve();
-            REQUIRE(info.size() == 4);
-            CHECK(info[0].name == "hypervisor1");
-            CHECK(info[1].name == "hypervisor3");
-            CHECK(info[2].name == "vm2");
-            CHECK(info[3].name == "srv21");
-        }
-
-        //"Not exists"
-        {
-            cond.value = "wtf";
-            cond.op    = fty::Group::ConditionOp::Is;
-
-            auto g    = group.create();
-            auto info = g.resolve();
-
-            REQUIRE(info.size() == 0);
-        }
-
-        CHECK(fty::Storage::clear());
-    } catch (const std::exception& ex) {
-        std::cerr << "Exception thrown: " << ex.what() << std::endl;
-        FAIL(ex.what());
-    }
-}
-
 TEST_CASE("Resolve by location")
 {
     try {
@@ -714,6 +584,136 @@ TEST_CASE("Resolve by location 2")
 
             REQUIRE(info.size() == 1);
             CHECK(info[0].name == "srv21");
+        }
+
+        //"Not exists"
+        {
+            cond.value = "wtf";
+            cond.op    = fty::Group::ConditionOp::Is;
+
+            auto g    = group.create();
+            auto info = g.resolve();
+
+            REQUIRE(info.size() == 0);
+        }
+
+        CHECK(fty::Storage::clear());
+    } catch (const std::exception& ex) {
+        std::cerr << "Exception thrown: " << ex.what() << std::endl;
+        FAIL(ex.what());
+    }
+}
+
+TEST_CASE("Resolve by location 3 (vm and hypervisor)")
+{
+    try {
+        fty::SampleDb db(R"(
+            items:
+                - type : Datacenter
+                  name : datacenter
+                  items:
+                    - type     : Room
+                      name     : room
+                      ext-name : Room
+                      items:
+                        - type     : Rack
+                          name     : rack
+                          ext-name : Rack
+                          items:
+                            - type     : Server
+                              name     : srv11
+                              ext-name : srv11
+                            - type     : Server
+                              name     : srv112
+                              ext-name : srv112
+                - type : Hypervisor
+                  name : hypervisor
+                - type : Hypervisor
+                  name : hypervisor1
+                - type : Hypervisor
+                  name : hypervisor2
+                - type : Hypervisor
+                  name : hypervisor3
+                - type : virtual-machine
+                  name : vm1
+                - type : virtual-machine
+                  name : vm2
+                - type : Datacenter
+                  name : datacenter1
+                  items:
+                    - type     : Server
+                      name     : srv21
+                      ext-name : srv21
+            links:
+                - dest : hypervisor
+                  src  : srv11
+                  type : ipminfra.server.hosts.os
+                - dest : hypervisor2
+                  src  : srv112
+                  type : ipminfra.server.hosts.os
+                - dest : hypervisor3
+                  src  : srv21
+                  type : ipminfra.server.hosts.os
+                - dest : vm1
+                  src  : hypervisor
+                  type : vmware.esxi.hosts.vm
+                - dest : vm2
+                  src  : hypervisor3
+                  type : vmware.esxi.hosts.vm
+            )");
+
+        Group group;
+        group.name          = "ByLocation";
+        group.rules.groupOp = fty::Group::LogicalOp::And;
+
+        auto& var  = group.rules.conditions.append();
+        auto& cond = var.reset<fty::Group::Condition>();
+        cond.field = fty::Group::Fields::Location;
+
+        //"Contains"
+        {
+            cond.value = "room";
+            cond.op    = fty::Group::ConditionOp::Contains;
+
+            auto g    = group.create();
+            auto info = g.resolve();
+
+            REQUIRE(info.size() == 5);
+            CHECK(info[0].name == "srv11");
+            CHECK(info[1].name == "srv112");
+            CHECK(info[2].name == "hypervisor");
+            CHECK(info[3].name == "hypervisor2");
+            CHECK(info[4].name == "vm1");
+        }
+
+        // "Is"
+        {
+            cond.value = "room";
+            cond.op    = fty::Group::ConditionOp::Is;
+
+            auto g    = group.create();
+            auto info = g.resolve();
+
+            REQUIRE(info.size() == 5);
+            CHECK(info[0].name == "srv11");
+            CHECK(info[1].name == "srv112");
+            CHECK(info[2].name == "hypervisor");
+            CHECK(info[3].name == "hypervisor2");
+            CHECK(info[4].name == "vm1");
+        }
+
+        //"IsNot"
+        {
+            cond.value = "room";
+            cond.op    = fty::Group::ConditionOp::IsNot;
+
+            auto g    = group.create();
+            auto info = g.resolve();
+            REQUIRE(info.size() == 4);
+            CHECK(info[0].name == "hypervisor1");
+            CHECK(info[1].name == "hypervisor3");
+            CHECK(info[2].name == "vm2");
+            CHECK(info[3].name == "srv21");
         }
 
         //"Not exists"

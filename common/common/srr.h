@@ -24,7 +24,6 @@
 #include "group.h"
 #include <pack/pack.h>
 
-
 namespace fty::common::srr {
 
 static constexpr const char* Channel       = "FTY.Q.GROUP.SRR";

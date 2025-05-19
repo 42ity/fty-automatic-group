@@ -50,7 +50,6 @@ static std::string op(const Group::Condition& cond)
     return "unknown";
 }
 
-
 static std::string value(const Group::Condition& cond, std::string (*f)(const std::string&) = nullptr)
 {
     if (cond.op == Group::ConditionOp::Contains || cond.op == Group::ConditionOp::DoesNotContain) {
@@ -88,7 +87,22 @@ static std::string sqlLogicalOperator(const Group::LogicalOp& op)
 static std::vector<uint64_t> vmLinkTypes()
 {
     static std::vector<uint64_t> ids = []() {
-        std::string         sql = "select id_asset_link_type from t_bios_asset_link_type where name like '%.hosts.vm'";
+        std::string sql = "select id_asset_link_type from t_bios_asset_link_type where name like '%.hosts.vm'";
+        fty::db::Connection conn;
+        std::vector<uint64_t> ret;
+        for (const auto& it : conn.select(sql)) {
+            ret.push_back(it.get<uint64_t>("id_asset_link_type"));
+        }
+        return ret;
+    }();
+
+    return ids;
+}
+
+static std::vector<uint64_t> hypervisorLinkTypes()
+{
+    static std::vector<uint64_t> ids = []() {
+        std::string sql = "select id_asset_link_type from t_bios_asset_link_type where name = 'ipminfra.server.hosts.os'";
         fty::db::Connection conn;
         std::vector<uint64_t> ret;
         for (const auto& it : conn.select(sql)) {
@@ -142,14 +156,12 @@ static std::string byContact(const Group::Condition& cond)
     std::string sql   = R"(
         SELECT id_asset_element
         FROM t_bios_asset_ext_attributes
-        WHERE (keytag='device.contact' OR keytag='contact_email') AND
-              value {op} '{val}')";
+        WHERE (keytag='device.contact' OR keytag='contact_email')
+            AND value {op} '{val}')";
 
     if (cond.op == Group::ConditionOp::IsNot || cond.op == Group::ConditionOp::DoesNotContain) {
-        sql =
-            "SELECT id_asset_element FROM t_bios_asset_element \
-             WHERE id_asset_element NOT IN (" +
-            sql + ")";
+        sql = "SELECT id_asset_element FROM t_bios_asset_element \
+               WHERE id_asset_element NOT IN (" + sql + ")";
         tmpOp = cond.op != Group::ConditionOp::IsNot ? "like" : "=";
     }
 
@@ -199,28 +211,13 @@ static std::string bySubType(const Group::Condition& cond)
 
 // =====================================================================================================================
 
-static std::vector<uint64_t> hypervisorLinkTypes()
-{
-    static std::vector<uint64_t> ids = []() {
-        std::string sql =
-            "select id_asset_link_type from t_bios_asset_link_type where name = 'ipminfra.server.hosts.os'";
-        fty::db::Connection   conn;
-        std::vector<uint64_t> ret;
-        for (const auto& it : conn.select(sql)) {
-            ret.push_back(it.get<uint64_t>("id_asset_link_type"));
-        }
-        return ret;
-    }();
-
-    return ids;
-}
-
 static std::string byLocation(fty::db::Connection& conn, const Group::Condition& cond)
 {
     std::string dcSql = R"(
         SELECT id_asset_element
         FROM t_bios_asset_element
-        WHERE id_type in ({avail}) AND name {op} '{val}')";
+        WHERE id_type IN ({avail})
+            AND name {op} '{val}')";
 
     std::vector<int> avail = {persist::DATACENTER, persist::ROW, persist::RACK, persist::ROOM};
     // clang-format off
@@ -238,7 +235,7 @@ static std::string byLocation(fty::db::Connection& conn, const Group::Condition&
         std::string elQuery = R"(
             SELECT p.id_asset_element
             FROM v_bios_asset_element_super_parent p
-            WHERE :containerid in (p.id_parent1, p.id_parent2, p.id_parent3, p.id_parent4,
+            WHERE :containerid IN (p.id_parent1, p.id_parent2, p.id_parent3, p.id_parent4,
                 p.id_parent5, p.id_parent6, p.id_parent7, p.id_parent8, p.id_parent9, p.id_parent10)
         )";
 
@@ -262,8 +259,8 @@ static std::string byLocation(fty::db::Connection& conn, const Group::Condition&
             from t_bios_asset_link as l
             LEFT JOIN t_bios_asset_element AS e
             ON e.id_asset_element = l.id_asset_device_src
-            where l.id_asset_device_src in ({id}) and
-                  l.id_asset_link_type IN ({linkTypes})
+            WHERE l.id_asset_device_src IN ({id})
+                AND l.id_asset_link_type IN ({linkTypes})
         )";
 
         // hosted by | get VMs
@@ -271,9 +268,9 @@ static std::string byLocation(fty::db::Connection& conn, const Group::Condition&
         SELECT l.id_asset_device_dest FROM t_bios_asset_link AS l
         LEFT JOIN t_bios_asset_element AS e ON e.id_asset_element = l.id_asset_device_src
         WHERE
-            l.id_asset_link_type IN ({linkTypes}) AND
-            e.id_type = {type} AND
-            e.id_asset_element in ({val})
+            l.id_asset_link_type IN ({linkTypes})
+            AND e.id_type = {type}
+            AND e.id_asset_element IN ({val})
         )";
 
         // clang-format off
@@ -300,7 +297,7 @@ static std::string byLocation(fty::db::Connection& conn, const Group::Condition&
         std::string ret = fmt::format(R"(
             SELECT id_asset_element
             FROM t_bios_asset_element
-            WHERE id_asset_element in ({})
+            WHERE id_asset_element IN ({})
         )", fty::implode(ids, ","));
 
         if (cond.op == Group::ConditionOp::IsNot) {
@@ -325,14 +322,9 @@ static std::string byHostName(const Group::Condition& cond)
         FROM t_bios_asset_element AS e
         LEFT JOIN t_bios_asset_ext_attributes a ON e.id_asset_element = a.id_asset_element
         WHERE
-            a.value {op} '{val}' AND
-            ((
-                a.keytag='hostname.1'
-            ) OR (
-                a.keytag = 'hostname'
-            ))
+            a.value {op} '{val}'
+            AND ( (a.keytag='hostname.1') OR (a.keytag = 'hostname') )
     )";
-
 
     if (cond.op == Group::ConditionOp::IsNot  || cond.op == Group::ConditionOp::DoesNotContain) {
         sql =
@@ -362,12 +354,8 @@ static std::string byIpAddress(const Group::Condition& cond)
         LEFT JOIN t_bios_asset_ext_attributes a ON e.id_asset_element = a.id_asset_element
         LEFT JOIN t_bios_asset_element_type t ON e.id_type = t.id_asset_element_type
         WHERE
-            a.value {op} '{val}' AND
-            ((
-                a.keytag='ip.1'
-            ) OR (
-                a.keytag = 'ip'
-            ))
+            a.value {op} '{val}'
+            AND ( (a.keytag='ip.1') OR (a.keytag = 'ip') )
             AND t.name != "virtual-machine"
     )";
 
@@ -375,8 +363,7 @@ static std::string byIpAddress(const Group::Condition& cond)
     if (cond.op == Group::ConditionOp::IsNot || cond.op == Group::ConditionOp::DoesNotContain) {
         sql =
             "SELECT id_asset_element FROM t_bios_asset_element \
-             WHERE id_asset_element NOT IN (" +
-            sql + ")";
+             WHERE id_asset_element NOT IN (" + sql + ")";
         tmpOp = cond.op != Group::ConditionOp::IsNot ? "like" : "=";
     }
 
@@ -528,7 +515,7 @@ std::string groupSql(fty::db::Connection& conn, const Group::Rules& group)
 
     auto lambdaImplode = [&]() {
         std::stringstream ss;
-        bool              first = true;
+        bool first = true;
         for (const auto& query : subQueries) {
             if (!first) {
                 ss << ") " + sqlLogicalOperator(group.groupOp) + " id_asset_element " + query.op + " (";
@@ -540,8 +527,7 @@ std::string groupSql(fty::db::Connection& conn, const Group::Rules& group)
     };
 
     return fmt::format(R"(
-       SELECT
-           id_asset_element as id
+       SELECT id_asset_element as id
        FROM t_bios_asset_element
        WHERE id_asset_element IN ({})
    )", lambdaImplode());
@@ -549,7 +535,7 @@ std::string groupSql(fty::db::Connection& conn, const Group::Rules& group)
 
 static std::string byGroupId(fty::db::Connection& conn, const Group::Condition& cond)
 {
-    auto val   = fty::convert<uint64_t, std::string>(cond.value);
+    auto val = fty::convert<uint64_t, std::string>(cond.value);
     auto group = Storage::byId(val);
 
     if (!group) {
@@ -583,9 +569,7 @@ void Resolve::run(const commands::resolve::In& in, commands::resolve::Out& asset
     std::string groups = groupSql(conn, group.rules);
 
     std::string sql = fmt::format(R"(
-        SELECT
-            id_asset_element as id,
-            name
+        SELECT id_asset_element as id, name
         FROM t_bios_asset_element
         WHERE id_asset_element IN ({}) AND name <> 'rackcontroller-0'
         ORDER BY id

@@ -35,8 +35,7 @@ std::ostream& operator<<(std::ostream& ss, fty::Group::ConditionOp value)
                 return "IS";
             case fty::Group::ConditionOp::IsNot:
                 return "ISNOT";
-            case fty::Group::ConditionOp::Unknown:
-                return "UNKNOWN";
+            default:;
         }
         return "Unknown";
     }();
@@ -49,10 +48,10 @@ std::istream& operator>>(std::istream& ss, fty::Group::ConditionOp& value)
     ss >> strval;
     if (strval == "CONTAINS") {
         value = fty::Group::ConditionOp::Contains;
-    } else if (strval == "IS") {
-        value = fty::Group::ConditionOp::Is;
     } else if (strval == "DOESNOTCONTAIN") {
         value = fty::Group::ConditionOp::DoesNotContain;
+    } else if (strval == "IS") {
+        value = fty::Group::ConditionOp::Is;
     } else if (strval == "ISNOT") {
         value = fty::Group::ConditionOp::IsNot;
     } else {
@@ -65,14 +64,13 @@ std::ostream& operator<<(std::ostream& ss, fty::Group::LogicalOp value)
 {
     ss << [&]() {
         switch (value) {
-            case fty::Group::LogicalOp::And:
-                return "AND";
             case fty::Group::LogicalOp::Or:
                 return "OR";
-            case fty::Group::LogicalOp::Unknown:
-                return "Unknown";
+            case fty::Group::LogicalOp::And:
+                return "AND";
+            default:;
         }
-        return "n";
+        return "Unknown";
     }();
     return ss;
 }
@@ -81,10 +79,10 @@ std::istream& operator>>(std::istream& ss, fty::Group::LogicalOp& value)
 {
     std::string strval;
     ss >> strval;
-    if (strval == "AND") {
-        value = fty::Group::LogicalOp::And;
-    } else if (strval == "OR") {
+    if (strval == "OR") {
         value = fty::Group::LogicalOp::Or;
+    } else if (strval == "AND") {
+        value = fty::Group::LogicalOp::And;
     } else {
         value = fty::Group::LogicalOp::Unknown;
     }
@@ -117,22 +115,20 @@ std::ostream& operator<<(std::ostream& ss, fty::Group::Fields value)
                 return "group";
             case fty::Group::Fields::Tag:
                 return "tags";
-            case fty::Group::Fields::Unknown:
-                return "unknown";
+            case fty::Group::Fields::Criticality:
+                return "criticality";
+            default:;
         }
-        return "unknown";
+        return "Unknown";
     }();
     return ss;
 }
 
 std::istream& operator>>(std::istream& ss, fty::Group::Fields& value)
 {
-    value = fty::Group::Fields::Unknown;
     std::string strval;
     ss >> strval;
-    if (strval == "unknown") {
-        value = fty::Group::Fields::Unknown;
-    } else if (strval == "contact") {
+    if (strval == "contact") {
         value = fty::Group::Fields::Contact;
     } else if (strval == "host-name") {
         value = fty::Group::Fields::HostName;
@@ -154,6 +150,10 @@ std::istream& operator>>(std::istream& ss, fty::Group::Fields& value)
         value = fty::Group::Fields::Group;
     } else if (strval == "tags") {
         value = fty::Group::Fields::Tag;
+    } else if (strval == "criticality") {
+        value = fty::Group::Fields::Criticality;
+    } else {
+        value = fty::Group::Fields::Unknown;
     }
     return ss;
 }

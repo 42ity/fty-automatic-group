@@ -329,8 +329,7 @@ static std::string byHostName(const Group::Condition& cond)
     if (cond.op == Group::ConditionOp::IsNot  || cond.op == Group::ConditionOp::DoesNotContain) {
         sql =
             "SELECT id_asset_element FROM t_bios_asset_element \
-             WHERE id_asset_element NOT IN (" +
-            sql + ")";
+             WHERE id_asset_element NOT IN (" + sql + ")";
         tmpOp = cond.op != Group::ConditionOp::IsNot ? "like" : "=";
     }
 
@@ -445,6 +444,24 @@ static std::string byTag(const Group::Condition& cond)
 
 // =====================================================================================================================
 
+// Notice: ext. keytag = 'criticity'
+static std::string byCriticality(const Group::Condition& cond)
+{
+    static std::string sql = R"(
+        SELECT id_asset_element
+        FROM t_bios_asset_ext_attributes
+        WHERE keytag='criticity' AND value {op} '{val}')";
+
+    // clang-format off
+    return fmt::format(sql,
+        "op"_a  = op(cond),
+        "val"_a = value(cond)
+    );
+    // clang-format on
+}
+
+// =====================================================================================================================
+
 std::string groupSql(fty::db::Connection& conn, const Group::Rules& group)
 {
     struct SubQuery
@@ -500,7 +517,9 @@ std::string groupSql(fty::db::Connection& conn, const Group::Rules& group)
                 case Group::Fields::Tag:
                     subQueries.emplace_back(byTag(cond));
                     break;
-                case Group::Fields::Unknown:
+                case Group::Fields::Criticality:
+                    subQueries.emplace_back(byCriticality(cond));
+                    break;
                 default:
                     throw Error("Unsupported field '{}' in condition", cond.field.asString());
             }

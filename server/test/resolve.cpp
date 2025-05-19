@@ -2049,3 +2049,102 @@ TEST_CASE("Resolve by Tags")
         FAIL(ex.what());
     }
 }
+
+TEST_CASE("Resolve by Criticality")
+{
+    try {
+        fty::SampleDb db(R"(
+            items:
+                - type : Datacenter
+                  name : datacenter
+                  items:
+                    - type     : virtual-machine
+                      name     : vm1
+                      attrs :
+                            criticity : CRITICAL
+                    - type     : virtual-machine
+                      name     : vm2
+                      attrs :
+                            criticity : NON-CRITICAL
+                    - type     : virtual-machine
+                      name     : vm3
+                      attrs :
+                            criticity : INFRASTRUCTURE
+            )");
+
+        Group group;
+        group.name          = "ByCriticality";
+        group.rules.groupOp = fty::Group::LogicalOp::And;
+
+        auto& var  = group.rules.conditions.append();
+        auto& cond = var.reset<fty::Group::Condition>();
+        cond.field = fty::Group::Fields::Criticality;
+
+        // Contains
+        {
+            cond.value = "CRITICAL";
+            cond.op    = fty::Group::ConditionOp::Contains;
+
+            auto g    = group.create();
+            auto info = g.resolve();
+
+            REQUIRE(info.size() == 2);
+            CHECK(info[0].name == "vm1");
+            CHECK(info[1].name == "vm2");
+        }
+
+        // DoesNotContain
+        {
+            cond.value = "CRITICAL";
+            cond.op    = fty::Group::ConditionOp::DoesNotContain;
+
+            auto g    = group.create();
+            auto info = g.resolve();
+
+            REQUIRE(info.size() == 1);
+            CHECK(info[0].name == "vm3");
+        }
+
+        // Is
+        {
+            cond.value = "CRITICAL";
+            cond.op    = fty::Group::ConditionOp::Is;
+
+            auto g    = group.create();
+            auto info = g.resolve();
+
+            REQUIRE(info.size() == 1);
+            CHECK(info[0].name == "vm1");
+        }
+
+        // IsNot
+        {
+            cond.value = "CRITICAL";
+            cond.op    = fty::Group::ConditionOp::IsNot;
+
+            auto g    = group.create();
+            auto info = g.resolve();
+
+            REQUIRE(info.size() == 2);
+            CHECK(info[0].name == "vm2");
+            CHECK(info[1].name == "vm3");
+        }
+
+        // Not exists
+        {
+            cond.value = "wtf";
+            cond.op    = fty::Group::ConditionOp::Is;
+
+            auto g    = group.create();
+            auto info = g.resolve();
+
+            REQUIRE(info.size() == 0);
+        }
+
+        CHECK(fty::Storage::clear());
+
+    } catch (const std::exception& ex) {
+        std::cerr << "Exception thrown: " << ex.what() << std::endl;
+        FAIL(ex.what());
+    }
+}

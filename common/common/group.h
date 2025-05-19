@@ -31,16 +31,16 @@ struct Group : public pack::Node
     {
         Unknown,
         Or,
-        And
+        And,
     };
 
     enum class ConditionOp
     {
         Unknown,
         Contains,
+        DoesNotContain,
         Is,
         IsNot,
-        DoesNotContain
     };
 
     enum class Fields
@@ -56,7 +56,8 @@ struct Group : public pack::Node
         InternalName,
         HostedBy,
         Group,
-        Tag
+        Tag,
+        Criticality,
     };
 
     struct Condition : public pack::Node

@@ -53,7 +53,7 @@ int main(int argc, char** argv)
     }
 
     if (auto ret = fty::Config::instance().load(config); !ret) {
-        logError(ret.error());
+        logError("{}", ret.error());
         return EXIT_FAILURE;
     }
 
@@ -69,7 +69,7 @@ int main(int argc, char** argv)
         srv.wait();
         srv.shutdown();
     } else {
-        logError(res.error());
+        logError("{}", res.error());
         return EXIT_FAILURE;
     }
 

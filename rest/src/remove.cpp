@@ -25,6 +25,7 @@
 #include "common/string.h"
 #include "group-rest.h"
 #include <fty/rest/component.h>
+#include <fty/string-utils.h>
 
 namespace fty::agroup {
 
@@ -40,8 +41,12 @@ unsigned Remove::run()
         throw rest::errors::RequestParamRequired("id");
     }
 
-    if (!fty::groups::isNumeric(*strIdPrt)) {
-        throw rest::errors::Internal("Not a number");
+    // get vector of ids (numbers, comma separator)
+    std::vector<std::string> ids = fty::split(*strIdPrt, ",");
+    for (const auto& id : ids) {
+        if (!fty::groups::isNumeric(id)) {
+            throw rest::errors::Internal("Not a number");
+        }
     }
 
     fty::groups::MessageBus bus;
@@ -52,7 +57,9 @@ unsigned Remove::run()
     auto msg = message(commands::remove::Subject);
 
     fty::commands::remove::In in;
-    in.append(fty::convert<uint64_t>(*strIdPrt));
+    for (const auto& id : ids) {
+        in.append(fty::convert<uint64_t>(id));
+    }
 
     msg.setData(*pack::json::serialize(in));
 
@@ -62,7 +69,7 @@ unsigned Remove::run()
     }
 
     commands::remove::Out out;
-    auto                  info = pack::json::deserialize(ret->userData[0], out);
+    auto info = pack::json::deserialize(ret->userData[0], out);
     if (!info) {
         throw rest::errors::Internal(info.error());
     }

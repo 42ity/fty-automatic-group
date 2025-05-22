@@ -1,6 +1,6 @@
 # fty-automatic-group
 
-Agent fty-automatic-group manage automatic group.
+Agent fty-automatic-group to manage automatic group.
 
 ## How to build
 

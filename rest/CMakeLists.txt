@@ -28,6 +28,7 @@ etn_target(shared ${PROJECT_NAME}-rest
         ${PROJECT_NAME}-common
         fty-asset-libng
         fty_common_messagebus
+        fty-utils
     TARGET_DESTINATION
         ${CMAKE_INSTALL_LIBDIR}
 )

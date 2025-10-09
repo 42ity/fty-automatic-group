@@ -26,6 +26,7 @@
 #include <fty_common_db_connection.h>
 #include <fty_common_db_dbpath.h>
 #include <tntdb.h>
+#include <fmt/args.h>
 
 namespace fty::job {
 

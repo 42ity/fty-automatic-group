@@ -24,6 +24,7 @@
 #include "lib/storage.h"
 #include "lib/mutex.h"
 #include <tntdb.h>
+#include <fmt/args.h>
 
 namespace fty::job {
 

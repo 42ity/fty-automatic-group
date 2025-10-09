@@ -283,7 +283,7 @@ static std::string byLocation(fty::db::Connection& conn, const Group::Condition&
         sqlVM = fmt::format(sqlVM,
             "linkTypes"_a = fty::implode(vmLinkTypes(), ", "),
             "val"_a = sqlHypervisor,
-            "type"_a = persist::HYPERVISOR
+            "type"_a = int(persist::HYPERVISOR)
         );
         // clang-format on
 
@@ -397,7 +397,7 @@ static std::string byHostedBy(const Group::Condition& cond)
         "linkTypes"_a = fty::implode(vmLinkTypes(), ", "),
         "op"_a        = op(cond),
         "val"_a       = value(cond),
-        "type"_a      = persist::HYPERVISOR
+        "type"_a      = int(persist::HYPERVISOR)
     );
     // clang-format on
 }

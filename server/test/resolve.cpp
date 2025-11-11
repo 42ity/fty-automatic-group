@@ -222,6 +222,151 @@ TEST_CASE("Resolve by name with rules input")
     }
 }
 
+TEST_CASE("Resolve by name with quote with rules input")
+{
+    auto resolve = [](const std::string& json) -> fty::commands::resolve::Out {
+        fty::job::Resolve resolveObj;
+
+        fty::commands::resolve::In  in;
+        fty::commands::resolve::Out out;
+
+        if (auto ret = pack::yaml::deserialize(json, in); !ret) {
+            throw std::runtime_error(ret.error());
+        }
+
+        REQUIRE_NOTHROW(resolveObj.run(in, out));
+        return out;
+    };
+
+    try {
+        fty::SampleDb db(R"(
+            items:
+                - type : Datacenter
+                  name : datacenter
+                  items:
+                    - type     : Server
+                      name     : srv1
+                      ext-name : srv1
+                    - type     : Server
+                      name     : srv2
+                      ext-name : srv2
+                    - type     : Server
+                      name     : srv3
+                      ext-name : srv'3
+            )");
+
+        //"Contains"
+        {
+            std::string json = R"(
+            {
+              "rules": {
+                  "operator": "AND",
+                  "conditions": [
+                    {
+                      "field": "name",
+                      "operator": "CONTAINS",
+                      "value": "'"
+                    }
+                  ]
+              }
+            }
+            )";
+            auto info = resolve(json);
+
+            REQUIRE(info.size() == 1);
+            CHECK(info[0].name == "srv3");
+        }
+        //"Does not Contains"
+        {
+            std::string json = R"(
+            {
+              "rules": {
+                  "operator": "AND",
+                  "conditions": [
+                    {
+                      "field": "name",
+                      "operator": "DOESNOTCONTAIN",
+                      "value": "'"
+                    }
+                  ]
+              }
+            }
+            )";
+            auto info = resolve(json);
+
+            REQUIRE(info.size() == 2);
+            CHECK(info[0].name == "srv1");
+            CHECK(info[1].name == "srv2");
+        }
+        //"Is"
+        {
+            std::string json = R"(
+            {
+              "rules": {
+                  "operator": "AND",
+                  "conditions": [
+                    {
+                      "field": "name",
+                      "operator": "IS",
+                      "value": "srv'3"
+                    }
+                  ]
+              }
+            }
+            )";
+            auto info = resolve(json);
+
+            REQUIRE(info.size() == 1);
+            CHECK(info[0].name == "srv3");
+        }
+        //"Is not"
+        {
+            std::string json = R"(
+            {
+              "rules": {
+                  "operator": "AND",
+                  "conditions": [
+                    {
+                      "field": "name",
+                      "operator": "ISNOT",
+                      "value": "srv'3"
+                    }
+                  ]
+              }
+            }
+            )";
+            auto info = resolve(json);
+
+            REQUIRE(info.size() == 2);
+            CHECK(info[0].name == "srv1");
+            CHECK(info[1].name == "srv2");
+        }
+        //"Don't exist"
+        {
+            std::string json = R"(
+            {
+              "rules": {
+                  "operator": "AND",
+                  "conditions": [
+                    {
+                      "field": "name",
+                      "operator": "IS",
+                      "value": "hel'lo"
+                    }
+                  ]
+              }
+            }
+            )";
+            auto info = resolve(json);
+
+            REQUIRE(info.size() == 0);
+        }
+    } catch (const std::exception& ex) {
+        std::cerr << "Exception thrown: " << ex.what() << std::endl;
+        FAIL(ex.what());
+    }
+}
+
 TEST_CASE("Resolve by name")
 {
     try {

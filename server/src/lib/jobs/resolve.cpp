@@ -45,18 +45,21 @@ static std::string op(const Group::Condition& cond)
             return "=";
         case Group::ConditionOp::IsNot:
             return "<>";
-        case Group::ConditionOp::Unknown:
-            return "unknown";
+        default:;
     }
     return "unknown";
 }
 
 static std::string value(const Group::Condition& cond, std::string (*f)(const std::string&) = nullptr)
 {
+    std::string val = cond.value.value();
+
+    // proceed single quote (SQL query delimiter)
+    val = std::regex_replace(val, std::regex(R"(')"), R"('')");
+
     if (cond.op == Group::ConditionOp::Contains || cond.op == Group::ConditionOp::DoesNotContain) {
         // Like or not like
         // Escape the forbiden char at first
-        std::string val = cond.value.value();
 
         val = std::regex_replace(val, std::regex(R"(\\)"), R"(\\\\)");
         val = std::regex_replace(val, std::regex(R"(%)"), R"(\%)");
@@ -67,8 +70,9 @@ static std::string value(const Group::Condition& cond, std::string (*f)(const st
         }
 
         return fmt::format("%{}%", val);
-    } else {
-        return cond.value.value();
+    }
+    else {
+        return val;
     }
 }
 
@@ -79,8 +83,7 @@ static std::string sqlLogicalOperator(const Group::LogicalOp& op)
             return "AND";
         case Group::LogicalOp::Or:
             return "OR";
-        case Group::LogicalOp::Unknown:
-            return "unknown";
+        default:;
     }
     return "unknown";
 }

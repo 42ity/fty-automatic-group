@@ -53,9 +53,8 @@ unsigned ResolveList::run()
     auto strIdsPrt = m_request.queryArg<std::string>("ids");
     if (strIdsPrt && !strIdsPrt->empty()) {
         std::stringstream ss(*strIdsPrt);
-        while (ss.good()) {
-            std::string substr;
-            getline(ss, substr, ',');
+        std::string substr;
+        while (std::getline(ss, substr, ',')) {
             if (!fty::groups::isNumeric(substr)) {
                 throw rest::errors::Internal("Not a number");
             }
